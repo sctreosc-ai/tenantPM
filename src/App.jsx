@@ -64,7 +64,11 @@ function Dashboard({ user }) {
   const [hF,setHF] = useState({date:'',type:'Dues Unpaid',description:'',amount:'',status:'Outstanding',paidDate:'',notes:''})
   const [newCI,setNewCI] = useState({area:'',item:''})
   const [imgUploading, setImgUploading] = useState(false)
-  const dPreR=useRef(); const dAftR=useRef(); const sDocR=useRef()
+const dPreR=useRef(); const dAftR=useRef(); const sDocR=useRef()
+const [dPreUrl, setDPreUrl] = useState(null)
+const [dAftUrl, setDAftUrl] = useState(null)
+const [dExtraUrls, setDExtraUrls] = useState([])
+const [sDocUrl, setSDocUrl] = useState(null)
 
   useEffect(() => { loadTenants() }, [user])
 
@@ -167,19 +171,21 @@ function Dashboard({ user }) {
   }
 
   const addDamage = async () => {
-    if (!dF.description.trim()) return
-    const preUrl = dPreR.current?.files[0] ? await handleImg(dPreR.current.files[0], 'pre') : null
-    const aftUrl = dAftR.current?.files[0] ? await handleImg(dAftR.current.files[0], 'aft') : null
-    await addRecord('damages', {
-      description: dF.description.trim(), location: dF.location.trim(),
-      cost: parseFloat(dF.cost)||0, notes: dF.notes.trim(),
-      pre_image_url: preUrl, after_image_url: aftUrl,
-      recorded_at: new Date().toISOString().slice(0,10),
-    }, 'damages')
-    setDF({description:'',location:'',cost:'',notes:''})
-    if (dPreR.current) dPreR.current.value = ''
-    if (dAftR.current) dAftR.current.value = ''
-  }
+  if (!dF.description.trim()) return
+  const preUrl = dPreUrl
+  const aftUrl = dAftUrl
+  await addRecord('damages', {
+    description: dF.description.trim(), location: dF.location.trim(),
+    cost: parseFloat(dF.cost)||0, notes: dF.notes.trim(),
+    pre_image_url: preUrl, after_image_url: aftUrl,
+    extra_images: dExtraUrls,
+    recorded_at: new Date().toISOString().slice(0,10),
+  }, 'damages')
+  setDF({description:'',location:'',cost:'',notes:''})
+  setDPreUrl(null); setDAftUrl(null); setDExtraUrls([])
+  if (dPreR.current) dPreR.current.value = ''
+  if (dAftR.current) dAftR.current.value = ''
+}  
 
   const addService = async () => {
     if (!sF.description.trim()) return
@@ -383,8 +389,43 @@ function Dashboard({ user }) {
                       <div><label style={LS}>Location</label><input value={dF.location} onChange={e=>setDF(f=>({...f,location:e.target.value}))} placeholder="Master bath" style={IS}/></div>
                       <div><label style={LS}>Repair cost ($)</label><input type="number" value={dF.cost} onChange={e=>setDF(f=>({...f,cost:e.target.value}))} placeholder="0.00" style={IS}/></div>
                       <div><label style={LS}>Notes</label><input value={dF.notes} onChange={e=>setDF(f=>({...f,notes:e.target.value}))} placeholder="Optional" style={IS}/></div>
-                      <div><label style={LS}>Before photo</label><input ref={dPreR} type="file" accept="image/*" style={{fontSize:12,width:'100%'}}/></div>
-                      <div><label style={LS}>After photo</label><input ref={dAftR} type="file" accept="image/*" style={{fontSize:12,width:'100%'}}/></div>
+                      <div style={{gridColumn:'1/-1'}}>
+  <label style={LS}>Before photo / video</label>
+  <label style={{cursor:'pointer',fontSize:12,color:'#2563eb',border:'1px dashed #e2e8f0',borderRadius:6,padding:'8px 12px',display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+    <i className="ti ti-camera" style={{fontSize:14}}/>{dPreUrl?'✓ Uploaded — tap to change':'Tap to upload before photo or video'}
+    <input type="file" accept="image/*,video/*" onChange={async e=>{const f=e.target.files[0];if(f){setImgUploading(true);const url=await uploadImage(f,`${user.id}/${selId}/pre_${Date.now()}`);setDPreUrl(url);setImgUploading(false);}}} style={{display:'none'}}/>
+  </label>
+  {dPreUrl&&(dPreUrl.includes('.mp4')||dPreUrl.includes('.mov')||dPreUrl.includes('.webm')
+    ?<video src={dPreUrl} controls style={{width:'100%',maxHeight:160,borderRadius:4,marginBottom:4}}/>
+    :<img src={dPreUrl} alt="before" style={{width:'100%',maxHeight:160,objectFit:'cover',borderRadius:4,marginBottom:4}}/>)}
+</div>
+
+<div style={{gridColumn:'1/-1'}}>
+  <label style={LS}>After photo / video</label>
+  <label style={{cursor:'pointer',fontSize:12,color:'#2563eb',border:'1px dashed #e2e8f0',borderRadius:6,padding:'8px 12px',display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+    <i className="ti ti-camera" style={{fontSize:14}}/>{dAftUrl?'✓ Uploaded — tap to change':'Tap to upload after photo or video'}
+    <input type="file" accept="image/*,video/*" onChange={async e=>{const f=e.target.files[0];if(f){setImgUploading(true);const url=await uploadImage(f,`${user.id}/${selId}/aft_${Date.now()}`);setDAftUrl(url);setImgUploading(false);}}} style={{display:'none'}}/>
+  </label>
+  {dAftUrl&&(dAftUrl.includes('.mp4')||dAftUrl.includes('.mov')||dAftUrl.includes('.webm')
+    ?<video src={dAftUrl} controls style={{width:'100%',maxHeight:160,borderRadius:4,marginBottom:4}}/>
+    :<img src={dAftUrl} alt="after" style={{width:'100%',maxHeight:160,objectFit:'cover',borderRadius:4,marginBottom:4}}/>)}
+</div>
+
+<div style={{gridColumn:'1/-1'}}>
+  <label style={LS}>Additional photos / videos (tap + to add more)</label>
+  {dExtraUrls.map((url,i)=>(
+    <div key={i} style={{position:'relative',marginBottom:4}}>
+      {url.includes('.mp4')||url.includes('.mov')||url.includes('.webm')
+        ?<video src={url} controls style={{width:'100%',maxHeight:120,borderRadius:4}}/>
+        :<img src={url} alt={`extra${i}`} style={{width:'100%',maxHeight:120,objectFit:'cover',borderRadius:4}}/>}
+      <button onClick={()=>setDExtraUrls(prev=>prev.filter((_,j)=>j!==i))} style={{position:'absolute',top:4,right:4,background:'#dc2626',color:'#fff',border:'none',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontSize:12}}>✕</button>
+    </div>
+  ))}
+  <label style={{cursor:'pointer',fontSize:12,color:'#2563eb',border:'1px dashed #e2e8f0',borderRadius:6,padding:'8px 12px',display:'flex',alignItems:'center',gap:6}}>
+    <i className="ti ti-plus" style={{fontSize:14}}/>Add another photo or video
+    <input type="file" accept="image/*,video/*" onChange={async e=>{const f=e.target.files[0];if(f){setImgUploading(true);const url=await uploadImage(f,`${user.id}/${selId}/extra_${Date.now()}`);setDExtraUrls(prev=>[...prev,url]);setImgUploading(false);}}} style={{display:'none'}}/>
+  </label>
+</div>
                     </div>
                     <button onClick={addDamage} disabled={!dF.description.trim()||imgUploading} style={{marginTop:12,background:'#0f1e3c',color:'#fff',border:'none',borderRadius:6,padding:'7px 16px',fontSize:13,fontWeight:500,cursor:'pointer',opacity:dF.description.trim()&&!imgUploading?1:0.5}}>{imgUploading?'Uploading…':'+ Add Damage Item'}</button>
                   </div>}
